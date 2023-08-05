@@ -1,0 +1,19 @@
+version: '3.4'
+
+services:
+  ds_api:
+    build:
+      context: './'
+    volumes:
+      - './:/app'
+    environment:
+      API_KEY: mCk5diMp2ErazoPiWy3rGXaiLS
+      PORT: ${PORT:-8085}
+      DB_ENV: local
+    ports:
+      - "8085:8085"
+    # entrypoint: ""
+    # entrypoint: "tail -f /dev/null"
+    stdin_open: true
+    tty: true
+    network_mode: "bridge"

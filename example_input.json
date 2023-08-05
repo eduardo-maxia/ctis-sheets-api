@@ -1,0 +1,11 @@
+{
+  "habilidade": "Resolver problemas relacionados à força de atrito estático em plano inclinado",
+  "assunto": "Força de atrito estático",
+  "taxonomia": 4,
+  "contextualizada": true,
+  "tipo_item": "objetiva",
+  "nivel_dificuldade": 3,
+  "materia": "Física",
+  "apiKey": "mCk5diMp2ErazoPiWy3rGXaiLS",
+  "gpt_model": "gpt-3.5-turbo"
+}
