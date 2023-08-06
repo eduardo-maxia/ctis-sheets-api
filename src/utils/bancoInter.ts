@@ -49,7 +49,7 @@ const exampleData = {
       "dataTransacao": "2023-01-05",
       "tipoTransacao": "string",
       "tipoOperacao": "string",
-      "valor": "260",
+      "valor": "280",
       "titulo": "string",
       "descricao": "string",
       "detalhes": {
@@ -140,9 +140,9 @@ export async function processPayments(last_processed_tx: string | null) {
     }
 
     // Dispensa o pagamento se não for múltiplo do valor da mensalidade
-    if (valor % 130 !== 0) {
-      continue
-    }
+    // if (valor % 130 !== 0) {
+    //   continue
+    // }
 
     paymentsToUpdate.push({ TxId: payment.idTransacao, Nome: nomePagador, CPF: cpfCnpjPagador, Valor: valor, DataPagamento: payment.dataTransacao })
   }

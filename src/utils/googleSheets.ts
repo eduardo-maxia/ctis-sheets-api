@@ -3,6 +3,35 @@ import { JWT } from 'google-auth-library'
 import { processPayments } from './bancoInter';
 import { isUndefined } from 'lodash';
 
+function powerset<T>(arr: T[]): T[][] {
+  var ps: T[][] = [[]];
+  for (var i = 0; i < arr.length; i++) {
+    for (var j = 0, len = ps.length; j < len; j++) {
+      ps.push(ps[j].concat(arr[i]));
+    }
+  }
+  return ps;
+}
+
+function sum(arr: any[]) {
+  var total = 0;
+  for (var i = 0; i < arr.length; i++)
+    total += arr[i];
+  return total
+}
+
+
+function getPaymentSubset<T extends GoogleSpreadsheetRow>(pagamentos: T[], targetSum: number): T[] | null {
+  var pagamentosSets = powerset(pagamentos);
+  for (var i = 0; i < pagamentosSets.length; i++) {
+    var pagamentoSet = pagamentosSets[i];
+    if (sum(pagamentoSet.map(p => Number(p.get('Valor').split('R$')[1].replace(',', '.')))) === targetSum)
+      return pagamentoSet;
+  }
+
+  return null
+}
+
 const getA1Notation = (row: number, column: number) => {
   const a1Notation = [`${row}`];
   const totalAlphabets = 'Z'.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
@@ -136,23 +165,27 @@ export async function updatePayments() {
 
   paymentsToUpdate.forEach(async pagamento => {
     // Find the payment corresponding to this processed payment
-    const numberOfPaymentsToClear = Math.floor(pagamento.Valor / 130)
     const paymentsRowsFiltered = paymentsRows.filter(row =>
       isUndefined(row.get('DataPagamento')) &&
       compareCpf(pagamento.CPF, row.get('CPF')) &&
       compareDates(row.get('MesReferencia'), pagamento.DataPagamento) &&
       !justProcessedPayments.includes(row.rowNumber)
-    ).slice(0, numberOfPaymentsToClear)
+    )
+    // Verifica se existe alguma combinação das linhas que satisfaça o valor do pagamento realizado.
+    // Se não existir, é um pagamento não identificado.
+    // Estratégia: Para montar uma combinação, cada pagamento encontrado estará na combinação final ou não. (true/false)
+    // O número de combinações possíveis é 2 ^ paymentsRowsFiltered.length
+    const paymentSubset = getPaymentSubset(paymentsRowsFiltered, pagamento.Valor)
 
     // If numberOfPaymentsToClear is lengthier than paymentsRowsFiltered found, we have an unidentified payment
-    if (numberOfPaymentsToClear > paymentsRowsFiltered.length) {
+    if (!paymentSubset) {
       console.log('Unidentified payment')
       unidentifiedPayments.push(pagamento)
       return
     }
 
     // Now update the actually processed payments
-    const promises = paymentsRowsFiltered.map(async row => {
+    const promises = paymentSubset.map(async row => {
       justProcessedPayments.push(row.rowNumber)
       await paymentsSheet.loadCells(`H${row.rowNumber}:K${row.rowNumber}`)
       paymentsSheet.getCellByA1(`H${row.rowNumber}`).value = pagamento.DataPagamento
