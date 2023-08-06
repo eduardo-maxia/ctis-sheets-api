@@ -123,7 +123,7 @@ const exampleData = {
 export async function processPayments(last_processed_tx: string | null) {
   const payments = exampleData
   let last_processed_updated = false
-  let paymentsToUpdate: { transaction_id: string, nome: string, cpf: string, valor: number, dataPagamento: string }[] = []
+  let paymentsToUpdate: { TxId: string, Nome: string, CPF: string, Valor: number, DataPagamento: string }[] = []
 
   // Iterate over each payment
   for (const payment of payments.transacoes) {
@@ -144,7 +144,7 @@ export async function processPayments(last_processed_tx: string | null) {
       continue
     }
 
-    paymentsToUpdate.push({ transaction_id: payment.idTransacao, nome: nomePagador, cpf: cpfCnpjPagador, valor, dataPagamento: payment.dataTransacao })
+    paymentsToUpdate.push({ TxId: payment.idTransacao, Nome: nomePagador, CPF: cpfCnpjPagador, Valor: valor, DataPagamento: payment.dataTransacao })
   }
 
   return { paymentsToUpdate, last_processed_tx }

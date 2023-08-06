@@ -3,7 +3,16 @@ import { JWT } from 'google-auth-library'
 import { processPayments } from './bancoInter';
 import { isUndefined } from 'lodash';
 
-const valorMensalidade = 130
+const getA1Notation = (row: number, column: number) => {
+  const a1Notation = [`${row}`];
+  const totalAlphabets = 'Z'.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+  let block = column;
+  while (block >= 0) {
+    a1Notation.unshift(String.fromCharCode((block % totalAlphabets) + 'A'.charCodeAt(0)));
+    block = Math.floor(block / totalAlphabets) - 1;
+  }
+  return a1Notation.join('');
+};
 
 function compareCpf(cpfMasked: string, cpfReduced: string) {
   const cpfs = cpfReduced.split(';').map(cpf => cpf.trim().replace(/\D/g, ''))
@@ -58,12 +67,12 @@ export async function gerarPagamentos() {
   // Get all active students
   let activeStudents: GoogleSpreadsheetRow<Record<string, any>>[] = []
 
-  // 2-13: Máximo de 12 alunos
+  // 2-13: Máximo de 12 alunos, TODO: Turma infantil
   await Promise.all(doc.sheetsByIndex.map(async (sheet) => {
     if (sheet.title === 'Gestão' || sheet.title === 'Pagamentos' || sheet.title === 'Não Identificados') return
-    await sheet.loadCells('A2:C13')
-    const rows = await sheet.getRows({ limit: 12 });
-    activeStudents.push(...rows.filter(row => row.get('Nome')?.length > 0))
+    // await sheet.loadCells('A2:C13')
+    const rows = await sheet.getRows({ limit: 30 });
+    activeStudents.push(...rows.filter(row => row.get('Nome') !== '---' && row.get('Nome')?.length > 0))
 
     // Verifica se esse mês já foi colocado na planilha. Se não foi, coloca.
     const header = sheet.headerValues
@@ -82,49 +91,31 @@ export async function gerarPagamentos() {
   const studentsInputs = studentsToGenerate.map(student => ({
     Nome: student.get('Nome'),
     CPF: student.get('CPF'),
-    Valor: valorMensalidade,
+    Valor: student.get('Mensalidade'),
     DataVencimento: [student.get('DataVencimento'), month, year].join('/'),
     MesReferencia: monthYear,
     TurmaReferencia: student._worksheet.title
   }))
 
-  await paymentsSheet.addRows(studentsInputs).then(pagamentos => pagamentos.forEach((pagamento, index) => {
-    const student = activeStudents[index]
-    pagamento.set("Status", `=IFS(H${pagamento.rowNumber}<>""; "PAGO"; HOJE() - D${pagamento.rowNumber} > 5; "ATRASADO"; TRUE; "PENDENTE")`)
-    pagamento.save()
+  const generatedPayments = await paymentsSheet.addRows(studentsInputs)
+  await paymentsSheet.loadCells('G2:G')
+  await Promise.all(generatedPayments.map(async (pagamento, index) => {
+    const student = studentsToGenerate[index]
+    paymentsSheet.getCellByA1(`G${pagamento.rowNumber}`).value = `=IFS(H${pagamento.rowNumber}<>""; "PAGO"; HOJE() - D${pagamento.rowNumber} > 5; "ATRASADO"; TRUE; "PENDENTE")`
+
     // Create the link between the payment on this table and the original visialization table
-    student.set(monthYear, `=Pagamentos!G${pagamento.rowNumber}`)
-    student.save()
+    const columnNumber = student._worksheet.headerValues.findIndex(h => h === monthYear)
+    const studentPagamentoA1 = getA1Notation(student.rowNumber, columnNumber)
+    await student._worksheet.loadCells(studentPagamentoA1)
+    student._worksheet.getCellByA1(studentPagamentoA1).value = `=Pagamentos!G${pagamento.rowNumber}`
   }))
 
-  // async function generateStudentPayment(index: number) {
-  //   const student = activeStudents[index]
-  //   if (!student) return
+  await paymentsSheet.saveUpdatedCells()
+  await Promise.all(doc.sheetsByIndex.map(async (sheet) => {
+    if (sheet.title === 'Gestão' || sheet.title === 'Pagamentos' || sheet.title === 'Não Identificados') return
 
-  //   // Before adding the payment, check if it already exists
-  //   if (allPayments.filter(p => p.get('TurmaReferencia') === student._worksheet.title
-  //     && p.get('MesReferencia') === monthYear && p.get('Nome') === student.get('Nome')
-  //   ).length > 0) return generateStudentPayment(index + 1)
-
-  //   await paymentsSheet.addRow({
-  //     Nome: student.get('Nome'),
-  //     CPF: student.get('CPF'),
-  //     Valor: valorMensalidade,
-  //     DataVencimento: [student.get('DataVencimento'), month, year].join('/'),
-  //     MesReferencia: monthYear,
-  //     TurmaReferencia: student._worksheet.title
-  //   }).then(pagamento => {
-  //     pagamento.set("Status", `=IFS(H${pagamento.rowNumber}<>""; "PAGO"; HOJE() - D${pagamento.rowNumber} > 5; "ATRASADO"; TRUE; "PENDENTE")`)
-  //     pagamento.save()
-  //     // Create the link between the payment on this table and the original visialization table
-  //     student.set(monthYear, `=Pagamentos!G${pagamento.rowNumber}`)
-  //     student.save()
-  //   })
-
-  //   return generateStudentPayment(index + 1)
-  // }
-
-  // await generateStudentPayment(0)
+    await sheet.saveUpdatedCells()
+  }))
 }
 
 export async function updatePayments() {
@@ -135,56 +126,46 @@ export async function updatePayments() {
   const last_processed_tx_cell = gestaoSheet.getCellByA1('Y115')
 
   const { paymentsToUpdate, last_processed_tx } = await processPayments(
-    null // typeof last_processed_tx_cell.value === 'string' ? last_processed_tx_cell.value : null
+    null//  typeof last_processed_tx_cell.value === 'string' ? last_processed_tx_cell.value : null
   )
 
   const paymentsSheet = doc.sheetsByTitle['Pagamentos'];
   const paymentsRows = await paymentsSheet.getRows()
   let unidentifiedPayments: typeof paymentsToUpdate = []
-  paymentsToUpdate.forEach(async ({ transaction_id, nome, cpf, valor, dataPagamento }) => {
+  let justProcessedPayments: number[] = []
+
+  paymentsToUpdate.forEach(async pagamento => {
     // Find the payment corresponding to this processed payment
-    const numberOfPaymentsToClear = Math.floor(valor / 130)
+    const numberOfPaymentsToClear = Math.floor(pagamento.Valor / 130)
     const paymentsRowsFiltered = paymentsRows.filter(row =>
       isUndefined(row.get('DataPagamento')) &&
-      compareCpf(cpf, row.get('CPF')) &&
-      compareDates(row.get('MesReferencia'), dataPagamento)
+      compareCpf(pagamento.CPF, row.get('CPF')) &&
+      compareDates(row.get('MesReferencia'), pagamento.DataPagamento) &&
+      !justProcessedPayments.includes(row.rowNumber)
     ).slice(0, numberOfPaymentsToClear)
 
     // If numberOfPaymentsToClear is lengthier than paymentsRowsFiltered found, we have an unidentified payment
     if (numberOfPaymentsToClear > paymentsRowsFiltered.length) {
       console.log('Unidentified payment')
-      unidentifiedPayments.push({ transaction_id, nome, cpf, valor, dataPagamento })
+      unidentifiedPayments.push(pagamento)
       return
     }
 
     // Now update the actually processed payments
     const promises = paymentsRowsFiltered.map(async row => {
-      row.set('Status', 'PAGO')
-      row.set('DataPagamento', dataPagamento)
-      row.set('TxId', transaction_id)
-      row.set('CPFPagador', cpf)
-      row.set('ProcessadoPelaApi', true)
-      row.save()
+      justProcessedPayments.push(row.rowNumber)
+      await paymentsSheet.loadCells(`H${row.rowNumber}:K${row.rowNumber}`)
+      paymentsSheet.getCellByA1(`H${row.rowNumber}`).value = pagamento.DataPagamento
+      paymentsSheet.getCellByA1(`I${row.rowNumber}`).value = pagamento.TxId
+      paymentsSheet.getCellByA1(`J${row.rowNumber}`).value = pagamento.CPF
+      paymentsSheet.getCellByA1(`K${row.rowNumber}`).value = true
     })
     await Promise.all(promises)
+    await paymentsSheet.saveUpdatedCells()
   })
 
   const naoIdentificadosSheet = doc.sheetsByTitle['Não Identificados'];
-  async function processUnidentified(index: number) {
-    if (index >= unidentifiedPayments.length) return
-
-    const { transaction_id, nome, cpf, valor, dataPagamento } = unidentifiedPayments[index]
-    await naoIdentificadosSheet.addRow({
-      Nome: nome,
-      CPF: cpf,
-      Valor: valor,
-      DataPagamento: dataPagamento,
-      TxId: transaction_id
-    })
-
-    await processUnidentified(index + 1)
-  }
-  await processUnidentified(0)
+  await naoIdentificadosSheet.addRows(unidentifiedPayments)
 
   last_processed_tx_cell.value = last_processed_tx
   last_processed_tx_cell.save()
