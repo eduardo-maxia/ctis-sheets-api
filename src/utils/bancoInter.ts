@@ -8,8 +8,8 @@ const exampleData = {
   "transacoes": [
     {
       "idTransacao": "qwdiojhasidasidjaisbdhasvdghvasdvsad",
-      "dataInclusao": "2023-08-05",
-      "dataTransacao": "2023-08-05",
+      "dataInclusao": "2023-01-05",
+      "dataTransacao": "2023-01-05",
       "tipoTransacao": "string",
       "tipoOperacao": "string",
       "valor": "130",
@@ -45,8 +45,8 @@ const exampleData = {
     },
     {
       "idTransacao": "iurtisasd",
-      "dataInclusao": "2023-08-05",
-      "dataTransacao": "2023-08-05",
+      "dataInclusao": "2023-01-05",
+      "dataTransacao": "2023-01-05",
       "tipoTransacao": "string",
       "tipoOperacao": "string",
       "valor": "260",
@@ -82,8 +82,8 @@ const exampleData = {
     },
     {
       "idTransacao": "asdsdasdaseewqewq",
-      "dataInclusao": "2023-08-05",
-      "dataTransacao": "2023-08-05",
+      "dataInclusao": "2023-01-05",
+      "dataTransacao": "2023-01-05",
       "tipoTransacao": "string",
       "tipoOperacao": "string",
       "valor": "130",

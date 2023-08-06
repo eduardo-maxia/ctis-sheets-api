@@ -17,7 +17,13 @@ export class ProcessarPagamentosController extends Controller {
    * ## Description:
    * * Endpoint to process all payments from BancoInter's extrato.
    * * The only input needed will be the apiKey for authentication.
-   *   
+   * 
+   * Serão processados todos os pagamentos após o último processamento (gerenciado pela last_transaction_id diretamente na planilha).
+   * Só serão correspondidos pagamentos realizados no mesmo mês de referência. Pagamentos fora de época 
+   * serão registrados na planilha de Não Identificados e devem ser tratados manualmente.
+   * A função aceita pagamentos relacionados a uma lista de CPF's. Caso o CPF não seja encontrado, o pagamento será registrado
+   * na planilha de Não Identificados.
+   *    
    * @param requestBody 
    * @returns 
    * @example
