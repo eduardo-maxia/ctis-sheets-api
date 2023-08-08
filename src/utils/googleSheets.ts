@@ -155,7 +155,7 @@ export async function updatePayments() {
   const last_processed_tx_cell = gestaoSheet.getCellByA1('Y115')
 
   const { paymentsToUpdate, last_processed_tx } = await processPayments(
-    null//  typeof last_processed_tx_cell.value === 'string' ? last_processed_tx_cell.value : null
+    typeof last_processed_tx_cell.value === 'string' ? last_processed_tx_cell.value : null
   )
 
   const paymentsSheet = doc.sheetsByTitle['Pagamentos'];
