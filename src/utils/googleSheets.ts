@@ -48,11 +48,16 @@ function compareCpf(cpfMasked: string, cpfReduced: string) {
   return cpfs.includes(cpfMasked.trim().replace(/\D/g, ''))
 }
 
+function compareNome(nomePagamento: string, nomeReferencias: string) {
+  const listaNomes = String(nomeReferencias).split(';').map(nome => nome.trim().toLowerCase()).filter(el => el !== '')
+  return listaNomes.includes(nomePagamento.trim().toLowerCase())
+}
+
 function compareDates(MesReferencia: string, DataPagamento: string) {
-  const month = MesReferencia.split('(')[0]
+  const month = MesReferencia.split('(')[0].trim()
   const year = MesReferencia.split('(')[1].split(')')[0]
 
-  const [paymentMonth, paymentYear] = new Date(DataPagamento).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).split(' de ')
+  const [paymentMonth, paymentYear] = new Date(DataPagamento.split('/').reverse().join('/')).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).split(' de ')
   return month.toLowerCase() === paymentMonth.toLowerCase() && year === paymentYear
 }
 
@@ -204,3 +209,68 @@ export async function updatePayments() {
   last_processed_tx_cell.save()
 }
 
+export async function updatePaymentsV2() {
+  const doc = await getSheet()
+
+  const gestaoSheet = doc.sheetsByTitle['Gestão'];
+  await gestaoSheet.loadCells('Y116')
+  const lastProcessedDate = gestaoSheet.getCellByA1('Y116').stringValue ?? '2021-01-01'
+
+  const importacaoSheet = doc.sheetsByTitle['Importação']
+  await importacaoSheet.loadCells('B3')
+  const datasImportacao = importacaoSheet.getCellByA1('B3').stringValue ?? ''
+  const dataInicial = datasImportacao.split(' ')[0]
+  const dataFinal = datasImportacao.split(' ')[2]
+
+  if (new Date(dataInicial) <= new Date(lastProcessedDate)) {
+    throw new Error('Já foram processados pagamentos para essas datas')
+  }
+
+  const paymentsSheet = doc.sheetsByTitle['Pagamentos'];
+  const paymentsRows = await paymentsSheet.getRows()
+  let unidentifiedPayments: any[] = []
+  let justProcessedPayments: number[] = []
+
+  importacaoSheet.setHeaderRow(['DataPagamento', 'Tipo', 'Nome', 'Valor'])
+  const novosPagamentos = await importacaoSheet.getRows({ offset: 4 }).then(d => d.filter(row => row.get('Tipo') === 'Pix recebido'))
+
+  novosPagamentos.forEach(async novoPagamento => {
+    if (Number(novoPagamento.get('Valor')) < 90) return
+    // Find the payment corresponding to this processed payment
+    const paymentsRowsFiltered = paymentsRows.filter(row =>
+      isUndefined(row.get('DataPagamento')) &&
+      compareNome(String(novoPagamento.get('Nome')), row.get('NomeReferencias')) &&
+      compareDates(row.get('MesReferencia'), novoPagamento.get('DataPagamento')) &&
+      !justProcessedPayments.includes(row.rowNumber)
+    )
+
+    // Verifica se existe alguma combinação das linhas que satisfaça o valor do pagamento realizado.
+    // Se não existir, é um pagamento não identificado.
+    // Estratégia: Para montar uma combinação, cada pagamento encontrado estará na combinação final ou não. (true/false)
+    // O número de combinações possíveis é 2 ^ paymentsRowsFiltered.length
+    const paymentSubset = getPaymentSubset(paymentsRowsFiltered, Number(novoPagamento.get('Valor')))
+
+    // If numberOfPaymentsToClear is lengthier than paymentsRowsFiltered found, we have an unidentified payment
+    if (!paymentSubset) {
+      console.log('Unidentified payment')
+      unidentifiedPayments.push([novoPagamento.get('Nome'), novoPagamento.get('Valor'), novoPagamento.get('DataPagamento')])
+      return
+    }
+
+    // Now update the actually processed payments
+    const promises = paymentSubset.map(async row => {
+      justProcessedPayments.push(row.rowNumber)
+      await paymentsSheet.loadCells(`H${row.rowNumber}:I${row.rowNumber}`)
+      paymentsSheet.getCellByA1(`H${row.rowNumber}`).value = novoPagamento.get('DataPagamento')
+      paymentsSheet.getCellByA1(`I${row.rowNumber}`).value = true
+    })
+    await Promise.all(promises)
+    await paymentsSheet.saveUpdatedCells()
+  })
+
+  const naoIdentificadosSheet = doc.sheetsByTitle['Não Identificados'];
+  await naoIdentificadosSheet.addRows(unidentifiedPayments)
+
+  // gestaoSheet.getCellByA1('Y116').stringValue = dataFinal
+  // gestaoSheet.getCellByA1('Y116').save()
+}

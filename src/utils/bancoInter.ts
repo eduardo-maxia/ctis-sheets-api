@@ -4,128 +4,6 @@ import https from 'https';
 import { obterTokenOAuth } from "./obterTokenOAuth";
 import { stringify } from 'querystring';
 
-const exampleData = {
-  "totalPaginas": 1,
-  "totalElementos": 0,
-  "ultimaPagina": true,
-  "primeiraPagina": true,
-  "tamanhoPagina": 20,
-  "numeroDeElementos": 1,
-  "transacoes": [
-    {
-      "idTransacao": "qwdiojhasidasidjaisbdhasvdghvasdvsad",
-      "dataInclusao": "2023-01-05",
-      "dataTransacao": "2023-01-05",
-      "tipoTransacao": "string",
-      "tipoOperacao": "string",
-      "valor": "130",
-      "titulo": "string",
-      "descricao": "string",
-      "detalhes": {
-        "pix": {
-          "txId": "Rv1pt4pjd2jtjdzx5nafhtjks7",
-          "nomePagador": "Eduardo dos Anjos Rodrigues",
-          "descricaoPix": "Pagamento do aluguel",
-          "cpfCnpjPagador": "**2822014**",
-          "contaBancariaRecebedor": "17687786",
-          "nomeEmpresaPagador": "Banco Inter",
-          "tipoDetalhe": "COMPLETE",
-          "endToEndId": "E00416968202206201436ghzKRVgnb7A",
-          "chavePixRecebedor": "+5531985443142",
-          "nomeEmpresaRecebedor": "CAIXA ECONOMICA FEDEREAL",
-          "nomeRecebedor": "Nome Recebedor",
-          "agenciaRecebedor": "0089",
-          "cpfCnpjRecebedor": "04993960654",
-          "origemMovimentacao": "CHAVE",
-          "devolucoes": [
-            {
-              "data": "string",
-              "horario": "string",
-              "id": "string",
-              "valorRetornado": "string",
-              "descricao": "string"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "idTransacao": "iurtisasd",
-      "dataInclusao": "2023-01-05",
-      "dataTransacao": "2023-01-05",
-      "tipoTransacao": "string",
-      "tipoOperacao": "string",
-      "valor": "280",
-      "titulo": "string",
-      "descricao": "string",
-      "detalhes": {
-        "pix": {
-          "txId": "Rv1pt4pjd2jtjdzx5nafhtjks7",
-          "nomePagador": "Eduardo dos Anjos Rodrigues",
-          "descricaoPix": "Pagamento do aluguel",
-          "cpfCnpjPagador": "**2822014**",
-          "contaBancariaRecebedor": "17687786",
-          "nomeEmpresaPagador": "Banco Inter",
-          "tipoDetalhe": "COMPLETE",
-          "endToEndId": "E00416968202206201436ghzKRVgnb7A",
-          "chavePixRecebedor": "+5531985443142",
-          "nomeEmpresaRecebedor": "CAIXA ECONOMICA FEDEREAL",
-          "nomeRecebedor": "Nome Recebedor",
-          "agenciaRecebedor": "0089",
-          "cpfCnpjRecebedor": "04993960654",
-          "origemMovimentacao": "CHAVE",
-          "devolucoes": [
-            {
-              "data": "string",
-              "horario": "string",
-              "id": "string",
-              "valorRetornado": "string",
-              "descricao": "string"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "idTransacao": "asdsdasdaseewqewq",
-      "dataInclusao": "2023-01-05",
-      "dataTransacao": "2023-01-05",
-      "tipoTransacao": "string",
-      "tipoOperacao": "string",
-      "valor": "130",
-      "titulo": "string",
-      "descricao": "string",
-      "detalhes": {
-        "pix": {
-          "txId": "Rv1pt4pjd2jtjdzx5nafhtjks7",
-          "nomePagador": "Thiago Luiz",
-          "descricaoPix": "Pagamento do aluguel",
-          "cpfCnpjPagador": "**.4654.454-**",
-          "contaBancariaRecebedor": "17687786",
-          "nomeEmpresaPagador": "Banco Inter",
-          "tipoDetalhe": "COMPLETE",
-          "endToEndId": "E00416968202206201436ghzKRVgnb7A",
-          "chavePixRecebedor": "+5531985443142",
-          "nomeEmpresaRecebedor": "CAIXA ECONOMICA FEDEREAL",
-          "nomeRecebedor": "Nome Recebedor",
-          "agenciaRecebedor": "0089",
-          "cpfCnpjRecebedor": "04993960654",
-          "origemMovimentacao": "CHAVE",
-          "devolucoes": [
-            {
-              "data": "string",
-              "horario": "string",
-              "id": "string",
-              "valorRetornado": "string",
-              "descricao": "string"
-            }
-          ]
-        }
-      }
-    }
-  ]
-}
-
 async function getOAuthToken() {
   const certificate = Buffer.from(process.env.INTER_CERTIFICATE!, 'base64').toString('ascii');
   const key = Buffer.from(process.env.INTER_KEY!, 'base64').toString('ascii');
@@ -162,7 +40,7 @@ async function getExtrato() {
   const certificate = Buffer.from(process.env.INTER_CERTIFICATE!, 'base64').toString('ascii');
   const key = Buffer.from(process.env.INTER_KEY!, 'base64').toString('ascii');
   const token = await getOAuthToken()
-  return axios.get<typeof exampleData>('https://cdpj.partners.bancointer.com.br/banking/v2/extrato/completo', {
+  return axios.get<any>('https://cdpj.partners.bancointer.com.br/banking/v2/extrato/completo', {
     headers: {
       Authorization: `Bearer ${token}`
     },
@@ -191,7 +69,7 @@ export async function processPayments(last_processed_tx: string | null) {
 
   // Iterate over each payment
   for (const payment of payments.transacoes) {
-    const { cpfCnpjPagador, nomePagador } = payment.detalhes.pix
+    const { cpfCnpjPagador, nomePagador } = payment.detalhes
     const valor = Number(payment.valor)
 
     if (last_processed_tx === payment.idTransacao) {
@@ -203,10 +81,10 @@ export async function processPayments(last_processed_tx: string | null) {
       last_processed_updated = true
     }
 
-    // Dispensa o pagamento se não for múltiplo do valor da mensalidade
-    // if (valor % 130 !== 0) {
-    //   continue
-    // }
+    // Dispensa o pagamento se não for maior que 90 reais
+    if (valor < 90) {
+      continue
+    }
 
     paymentsToUpdate.push({ TxId: payment.idTransacao, Nome: nomePagador, CPF: cpfCnpjPagador, Valor: valor, DataPagamento: payment.dataTransacao })
   }

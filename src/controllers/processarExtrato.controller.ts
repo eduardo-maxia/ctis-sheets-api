@@ -6,7 +6,7 @@ import {
   SuccessResponse,
   Security
 } from "tsoa";
-import { gerarPagamentos, updatePayments } from "../utils/googleSheets";
+import { gerarPagamentos, updatePayments, updatePaymentsV2 } from "../utils/googleSheets";
 
 export type ProcessarPagamentosInput = {
   apiKey: string
@@ -36,7 +36,7 @@ export class ProcessarPagamentosController extends Controller {
   ): Promise<void> {
     this.setStatus(200); // set return status 200
     console.log("Start processing...")
-    await updatePayments()
+    await updatePaymentsV2()
   }
 }
 
